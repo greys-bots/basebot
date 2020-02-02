@@ -23,6 +23,9 @@ module.exports = (bot) => {
 		levels		INTEGER
 	)`);
 
+	//TODO: change this to be more dynamic
+	//		so that store constructors don't have
+	//		"bot.[x] = this" stuff in them
 	var files = fs.readdirSync(__dirname);
 	for(var file of files) {
 		if(file == "__db.js") continue;

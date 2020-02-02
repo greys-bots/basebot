@@ -74,6 +74,7 @@ const registerCommand = function({command, module, name} = {}) {
 //actual setup
 //TODO: make db stuff into classes?
 async function setup() {
+	var files;
 	bot.db = require('./stores/__db.js')(bot); //our database and stores
 
 	files = fs.readdirSync("./events");
