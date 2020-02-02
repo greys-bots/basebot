@@ -62,7 +62,7 @@ class ConfigStore extends Collection {
 
 	async delete(server) {
 		return new Promise((res, rej) => {
-			this.db.query(`DELETE FROM configs WHERE user_id = ?`, [server], (err, rows) => {
+			this.db.query(`DELETE FROM configs WHERE server_id = ?`, [server], (err, rows) => {
 				if(err) {
 					console.log(err);
 					rej(err.message);
