@@ -35,7 +35,7 @@ class ConfigStore extends Collection {
 				if(config) return res(config);
 			}
 			
-			this.db.query(`SELECT * FROM configs WHERE user_id = ?`,[server], (err, rows) => {
+			this.db.query(`SELECT * FROM configs WHERE server_id = ?`,[server], (err, rows) => {
 				if(err) {
 					console.log(err);
 					rej(err.message);
