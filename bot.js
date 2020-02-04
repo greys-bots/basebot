@@ -125,11 +125,10 @@ bot.parseCommand = async function(bot, msg, args) {
 		command = command.subcommands.get(command.sub_aliases.get(args[0].toLowerCase()));
 		args.shift();
 	}
-
-	if(command.permissions) permcheck = msg.member.permissions.has(cmd.permissions);
-
+	if(command.permissions) permcheck = msg.member.permissions.has(command.permissions);
 	return {command, args, permcheck};
 }
 
 setup();
-bot.login(process.env.TOKEN);
+bot.login(process.env.TOKEN)
+.then(()=> console.log("Ready!"));

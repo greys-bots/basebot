@@ -13,6 +13,7 @@
     "dblite": "^1.1.3",
     "discord.js": "github:discordjs/discord.js",
     "dotenv": "^8.2.0",
-    "eris": "github:abalabahaha/eris"
+    "eris": "github:abalabahaha/eris",
+    "tinycolor2": "^1.4.1"
   }
 }

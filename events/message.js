@@ -1,10 +1,31 @@
 module.exports = async (msg, bot) => {
+	if(msg.author.bot) return;
+
+	var lvlup;
+	try {
+		lvlup = await bot.stores.profiles.handleExperience(msg.author.id);
+	} catch(e) {
+		msg.channel.send(e);
+	}
+	if(lvlup.message) msg.channel.send(lvlup.message.replace("$USER", msg.author.username));
+	
 	var prefix = new RegExp("^"+bot.prefix, "i");
 	if(!msg.content.match(prefix)) return;
 
+	var config;
+	if(msg.guild) {
+		try {
+			config = await bot.stores.configs.get(msg.guild.id);
+		} catch(e) {
+			return "ERR: "+e;
+		}
+	}
+	if(!config) config = {};
+	
 	var {command, args, permcheck} = await bot.parseCommand(bot, msg, msg.content.replace(prefix, "").split(" "));
 	if(!command) return msg.channel.send("Command not found");
 	if(!permcheck) return msg.channel.send("You don't have permission to use that command");
+	if(config.disabled && config.disabled.includes(command.name)) return msg.channel.send("That command is disabled");
 
 	var result;
 	try {

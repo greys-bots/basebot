@@ -5,8 +5,7 @@ class ConfigStore extends Collection {
 		super();
 
 		this.db = db;
-
-		bot.configs = this;
+		this.bot = bot;
 	};
 
 	async create(server, data = {}) {
@@ -34,8 +33,13 @@ class ConfigStore extends Collection {
 				var config = super.get(server);
 				if(config) return res(config);
 			}
-			
-			this.db.query(`SELECT * FROM configs WHERE server_id = ?`,[server], (err, rows) => {
+			this.db.query(`SELECT * FROM configs WHERE server_id = ?`,[server], {
+				id: Number,
+				server_id: String,
+				prefix: String,
+				disabled: val => val ? JSON.parse(val) : null,
+				levels: Boolean
+			}, (err, rows) => {
 				if(err) {
 					console.log(err);
 					rej(err.message);
