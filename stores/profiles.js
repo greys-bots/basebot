@@ -1,5 +1,4 @@
-const {Collection} = require("discord.js");
-const expGiven = new Set();
+const { Collection } = require("discord.js");
 
 class ProfileStore extends Collection {
 	constructor(bot, db) {
@@ -7,10 +6,14 @@ class ProfileStore extends Collection {
 
 		this.db = db;
 		this.bot = bot;
+		this.expGiven = new Set();
+		this.cache = new Map();
+
+		setInterval(this.cache.clear(), process.env.CACHE_CLEAR || 10 * 60 * 1000) // clear cache every 10m by default
 	};
 
 	async create(user, data = {}) {
-		return new Promise(async (res, rej) => {
+		try {
 			this.db.query(`INSERT INTO profiles (
 				user_id,
 				name,
@@ -19,60 +22,36 @@ class ProfileStore extends Collection {
 				level,
 				exp,
 				disabled
-			) VALUES (?,?,?,?,?,?,?)`,
+			) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
 			[user, data.name, data.description,
-			 data.color, data.level || 1, data.exp || 0, data.disabled || 0], async (err, rows) => {
-			 	if(err) {
-			 		console.log(err);
-			 		rej(err.message);
-			 	} else {
-			 		res(await this.get(user));
-			 	}
-			 })
-		})
+			 data.color, data.level || 1, data.exp || 0,
+			 data.disabled || 0])
+		} catch(e) {
+			console.error(e.message);
+			return Promise.reject(e.message);
+		}
+
+		return await this.get(user);
 	}
 
 	async get(user, forceUpdate = false) {
-		return new Promise((res, rej) => {
-			if(!forceUpdate) {
-				var profile = super.get(user);
-				if(profile) return res(profile);
-			}
-			
-			this.db.query(`SELECT * FROM profiles WHERE user_id = ?`,[user], {
-				id: Number,
-				user_id: String,
-				name: String,
-				description: String,
-				color: String,
-				level: Number,
-				exp: Number,
-				disabled: Boolean
-			},(err, rows) => {
-				if(err) {
-					console.log(err);
-					rej(err.message);
-				} else {
-					this.set(user, rows[0]);
-					res(rows[0])
-				}
-			})
-		})
+		if(!forceUpdate) {
+			var profile = this.cache.get(user);
+			if(profile) return profile;
+		}
+		
+		var data = await this.db.query(`SELECT * FROM profiles WHERE user_id = $1`, [user]);
+
+		if(data.rows?[0]) {
+			this.cache.set(user, data.rows[0]);
+			return data.rows[0];
+		} else return undefined;
 	}
 
 	async update(user, data) {
-		return new Promise((res, rej) => {
-			this.db.query(`UPDATE profiles SET ${Object.keys(data).map((k) => k+"=?").join(",")} WHERE user_id=?`,[...Object.values(data), user], async (err, rows)=> {
-				if(err) {
-					console.log(err);
-					rej(err.message);
-				} else {
-					res(await this.get(user, true));
-				}
-			})
-		})
+		this.db.query(`UPDATE profiles SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")} WHERE user_id=$1`,[user, ...Object.values(data)])
 	}
-
+0
 	async delete(user) {
 		return new Promise((res, rej) => {
 			this.db.query(`DELETE FROM profiles WHERE user_id = ?`, [user], (err, rows) => {
