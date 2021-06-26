@@ -9,20 +9,18 @@ const bot = new Discord.Client({partials: ['MESSAGE', 'USER', 'CHANNEL', 'GUILD_
 
 bot.status = 0; //determines below
 bot.prefix = process.env.PREFIX; //the bot's prefix
+const statuses = [
+	// function makes sure it's accurate
+	() => `${bot.prefix}h | in ${bot.guilds.size} guilds`,
+	() => `${bot.prefix}h | serving ${bot.users.size} users`
+]
 
 //handles the bot's activity stuff
 const updateStatus = function(){
-	switch(bot.status){
-		case 0:
-			bot.user.setActivity(bot.prefix + "!h | in "+bot.guilds.size+" guilds!");
-			bot.status++;
-			break;
-		case 1:
-			bot.user.setActivity(bot.prefix + "!h | serving "+bot.users.size+" users!");
-			bot.status = 0;
-			break;
-	}
-
+	var status = statuses[bot.status % statuses.length];
+	bot.user.setActivity(typeof status == 'function' ? status() : status)
+	bot.status++;
+	
 	setTimeout(()=> updateStatus(),600000)
 }
 
@@ -72,7 +70,6 @@ const registerCommand = function({command, module, name} = {}) {
 }
 
 //actual setup
-//TODO: make db stuff into classes?
 async function setup() {
 	var files;
 	bot.db = require('./stores/__db.js')(bot); //our database and stores
