@@ -5,7 +5,25 @@ const dblite 	= require("dblite").withSQLite('3.8.6+'); //for our database
 
 require("dotenv").config(); //handles your .env, mainly for windows
 
-const bot = new Discord.Client({partials: ['MESSAGE', 'USER', 'CHANNEL', 'GUILD_MEMBER']});
+const bot = new Client({
+	intents: [
+		Intents.FLAGS.GUILDS,
+		Intents.FLAGS.GUILD_MESSAGES,
+		Intents.FLAGS.GUILD_MESSAGE_REACTIONS,
+		Intents.FLAGS.DIRECT_MESSAGES,
+		Intents.FLAGS.DIRECT_MESSAGE_REACTIONS
+	],
+	partials: [
+		'MESSAGE',
+		'USER',
+		'CHANNEL',
+		'GUILD_MEMBER',
+		'REACTION'
+	],
+	messageCacheMaxSize: 0,
+	messageCacheLifetime: 1,
+	messageSweepInterval: 1
+});
 
 bot.status = 0; //determines below
 bot.prefix = process.env.PREFIX; //the bot's prefix
@@ -24,51 +42,6 @@ const updateStatus = function(){
 	setTimeout(()=> updateStatus(),600000)
 }
 
-//for command setup
-const recursivelyReadDirectory = function(dir) {
-	var results = [];
-	var files = fs.readdirSync(dir, {withFileTypes: true});
-	for(file of files) {
-		if(file.isDirectory()) {
-			results = results.concat(recursivelyReadDirectory(dir+"/"+file.name));
-		} else {
-			results.push(dir+"/"+file.name);
-		}
-	}
-
-	return results;
-}
-
-//for handling commands
-const registerCommand = function({command, module, name} = {}) {
-	if(!command) return;
-	command.module = module;
-	command.name = name;
-	module.commands.set(name, command);
-	bot.commands.set(name, command);
-	bot.aliases.set(name, name);
-	if(command.alias) command.alias.forEach(a => bot.aliases.set(a, name));
-	
-	if(command.subcommands) {
-		var subcommands = command.subcommands;
-		command.subcommands = new Discord.Collection();
-		Object.keys(subcommands).forEach(c => {
-			var cmd = subcommands[c];
-			cmd.name = `${command.name} ${c}`;
-			cmd.parent = command;
-			cmd.module = command.module;
-			if(!command.sub_aliases) command.sub_aliases = new Discord.Collection();
-			command.sub_aliases.set(c, c);
-			if(cmd.alias) cmd.alias.forEach(a => command.sub_aliases.set(a, c));
-			if(command.permissions && !cmd.permissions) cmd.permissions = command.permissions;
-			if(command.guildOnly != undefined && cmd.guildOnly == undefined)
-				cmd.guildOnly = command.guildOnly;
-			command.subcommands.set(c, cmd);
-		})
-	}
-	return command;
-}
-
 //actual setup
 async function setup() {
 	var files;
@@ -81,49 +54,27 @@ async function setup() {
 	files = fs.readdirSync("./utils");
 	files.forEach(f => Object.assign(bot.utils, require("./utils/"+f)));
 
-	files = recursivelyReadDirectory("./commands");
+	bot.handlers = {};
+	files = fs.readdirSync(__dirname + "/handlers");
+	files.forEach(f => bot.handlers[f.slice(0,-3)] = require(__dirname + "/handlers/"+f)(bot));
 
-	bot.modules = new Discord.Collection();
-	bot.mod_aliases = new Discord.Collection();
-	bot.commands = new Discord.Collection();
-	bot.aliases = new Discord.Collection();
-	for(f of files) {
-		var path_frags = f.replace("./commands/","").split(/(?:\\|\/)/);
-		var mod = path_frags.length > 1 ? path_frags[path_frags.length - 2] : "Unsorted";
-		var file = path_frags[path_frags.length - 1];
-		if(!bot.modules.get(mod.toLowerCase())) {
-			var mod_info = require(file == "__mod.js" ? f : f.replace(file, "__mod.js"));
-			bot.modules.set(mod.toLowerCase(), {...mod_info, name: mod, commands: new Discord.Collection()})
-			bot.mod_aliases.set(mod.toLowerCase(), mod.toLowerCase());
-			if(mod_info.alias) mod_info.alias.forEach(a => bot.mod_aliases.set(a, mod.toLowerCase()));
-		}
-		if(file == "__mod.js") continue;
-
-		mod = bot.modules.get(mod.toLowerCase());
-		if(!mod) {
-			console.log("Whoopsies");
-			continue;
-		}
-		
-		registerCommand({command: require(f), module: mod, name: file.slice(0, -3).toLowerCase()})
-	}
+	var data = bot.utils.loadCommands(__dirname + "/../common/commands");
+	Object.keys(data).forEach(k => bot[k] = data[k]);
 }
 
-bot.parseCommand = async function(bot, msg, args) {
-	if(!args[0]) return undefined;
-	
-	var command = bot.commands.get(bot.aliases.get(args[0].toLowerCase()));
-	if(!command) return {command, args};
-
-	args.shift();
-	var permcheck = true;
-
-	if(args[0] && command.subcommands && command.subcommands.get(command.sub_aliases.get(args[0].toLowerCase()))) {
-		command = command.subcommands.get(command.sub_aliases.get(args[0].toLowerCase()));
-		args.shift();
+bot.writeLog = async (log) => {
+	let now = new Date();
+	let ndt = `${(now.getMonth() + 1).toString().length < 2 ? "0"+ (now.getMonth() + 1) : now.getMonth()+1}.${now.getDate().toString().length < 2 ? "0"+ now.getDate() : now.getDate()}.${now.getFullYear()}`;
+	if(!fs.existsSync('./logs')) fs.mkdirSync('./logs');
+	if(!fs.existsSync(`./logs/${ndt}.log`)){
+		fs.writeFile(`./logs/${ndt}.log`,log+"\r\n",(err)=>{
+			if(err) console.log(`Error while attempting to write log ${ndt}\n`+err.stack);
+		});
+	} else {
+		fs.appendFile(`./logs/${ndt}.log`,log+"\r\n",(err)=>{
+			if(err) console.log(`Error while attempting to apend to log ${ndt}\n`+err);
+		});
 	}
-	if(command.permissions) permcheck = msg.member.permissions.has(command.permissions);
-	return {command, args, permcheck};
 }
 
 setup();

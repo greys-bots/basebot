@@ -22,21 +22,28 @@ module.exports = async (msg, bot) => {
 	}
 	if(!config) config = {};
 	
-	var {command, args, permcheck} = await bot.parseCommand(bot, msg, msg.content.replace(prefix, "").split(" "));
-	if(!command) return msg.channel.send("Command not found");
-	if(!permcheck) return msg.channel.send("You don't have permission to use that command");
-	if(config.disabled && config.disabled.includes(command.name)) return msg.channel.send("That command is disabled");
-
-	var result;
-	try {
-		result = await command.execute(bot, msg, args);
-	} catch(e) {
-		console.log(e);
-		return msg.channel.send("ERR: "+e.message);
+	let {command, args} = await bot.handlers.command.parse(msg.content.replace(prefix, ""));
+	if(!command) {
+		log.push('- Command not found -');
+		console.log(log.join('\r\n'));
+		bot.writeLog(log.join('\r\n'));
+		return await msg.channel.send("Command not found!");
 	}
 
-	if(typeof result == "object" && result[0]) { //embeds
-		var message = await msg.channel.send(result[0]);
+	try {
+		var result = await bot.handlers.command.handle({command, args, msg, config});
+	} catch(e) {
+		console.log(e.stack);
+		log.push(`Error: ${e.stack}`);
+		log.push(`--------------------`);
+		msg.channel.send('There was an error!')
+	}
+	console.log(log.join('\r\n'));
+	bot.writeLog(log.join('\r\n'));
+	
+	if(!result) return;
+	if(Array.isArray(result)) { //embeds
+		var message = await msg.channel.send({embeds: [result[0].embed]});
 		if(result[1]) {
 			if(!bot.menus) bot.menus = {};
 			bot.menus[message.id] = {
@@ -50,11 +57,12 @@ module.exports = async (msg, bot) => {
 					} catch(e) {
 						console.log(e);
 					}
-					delete bot.menus[msg.author.id];
+					delete bot.menus[message.id];
 				}, 900000),
 				execute: bot.utils.paginateEmbeds
 			};
-			["\u2b05", "\u27a1", "\u23f9"].forEach(r => message.react(r));
+			["⬅️", "➡️", "⏹️"].forEach(r => message.react(r));
 		}
-	} else msg.channel.send(result);
+	} else if(typeof result == "object") await msg.channel.send({embeds: [result.embed ?? result]});
+	else await msg.channel.send(result);
 }
