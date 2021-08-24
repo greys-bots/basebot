@@ -116,6 +116,6 @@ module.exports = async (message, bot) => {
 [Support Server](https://discord.gg/EvDmXGt)
 
 ### Want to know how to make bots? Check these out!
-[Guide to Discord.js](https://discordjs.guide/)
-[An Idiot's Guide to Bot Making](https://anidiots.guide/)
+[Guide to Discord.js](https://discordjs.guide/)  
+[An Idiot's Guide to Bot Making](https://anidiots.guide/)  
 [AIG's Video Tutorials](https://www.youtube.com/watch?v=rVfjZrqoQ7o&list=PLR2_rarYLHfg6ZJqq0WTMmI9uLcd7_GRO)
