@@ -57,4 +57,8 @@ module.exports = {
 			custom_id: 'last'
 		}
 	],
+	numbers: ["0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"],
+	confirmReacts: ['✅','❌'],
+	confirmVals: [['y', 'yes', '✅'], ['n', 'no', '❌']],
+	confirmBtns: [['yes', 'clear'], ['no', 'cancel']],
 }

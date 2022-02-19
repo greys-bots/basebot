@@ -1,9 +1,9 @@
 module.exports = {
 	help: ()=> "Displays help embed",
 	usage: ()=> [
-		" - Displays help for all commands",
-		" [command] - Displays help for specfic command",
-		" [command] [subcommand] - Displays help for a command's subcommands"
+		"- Displays help for all commands",
+		"[command] - Displays help for specfic command",
+		"[command] [subcommand] - Displays help for a command's subcommands"
 	],
 	execute: async (bot, msg, args) => {
 		var cfg;
@@ -45,7 +45,7 @@ module.exports = {
 				title: `Help | ${command.name.toLowerCase()}`,
 				description: command.help(),
 				fields: [
-					{name: "**Usage**", value: `${command.usage().map(c => `**${prefix + command.name}**${c}`).join("\n")}`},
+					{name: "**Usage**", value: `${command.usage().map(c => `**${prefix + command.name}** ${c}`).join("\n")}`},
 					{name: "**Aliases**", value: `${command.alias ? command.alias.join(", ") : "(none)"}`},
 					{name: "**Subcommands**", value: `${command.subcommands ?
 							command.subcommands.map(sc => `**${prefix}${sc.name}** - ${sc.help()}`).join("\n") : 

@@ -1,15 +1,49 @@
-const {Collection} = require("discord.js");
+const KEYS = [
+	'id',
+	'server_id',
+	'prefix',
+	'disabled',
+	'levels'
+]
 
-class ConfigStore extends Collection {
+const PATCHABLE = KEYS.slice(2);
+
+class Config {
+	constructor(store, data) {
+		this.store = store;
+		for(var k of KEYS) this[k] = data[k];
+	}
+
+	async fetch() {
+		var data = await this.store.getID(this.id);
+		for(var k of KEYS) this[k] = data[k];
+
+		return this;
+	}
+
+	async save() {
+		var obj = {};
+		for(var k of PATCHABLE) {
+			obj[k] = this[k];
+		}
+
+		var data;
+		if(this.id) data = await this.store.update(this.id, obj);
+		else data = await this.store.create(this.server_id, obj);
+		for(var k of KEYS) this[k] = data[k];
+		return this;
+	}
+
+	async delete() {
+		await this.store.delete(this.id);
+	}
+}
+
+class ConfigStore {
 	constructor(bot, db) {
-		super();
-
 		this.db = db;
 		this.bot = bot;
-		this.cache = new Map();
-
-		setInterval(() => this.cache.clear(), process.env.CACHE_CLEAR || 10 * 60 * 1000)
-	};
+	}
 
 	async create(server, data = {}) {
 		try {
@@ -27,45 +61,48 @@ class ConfigStore extends Collection {
 		return await this.get(server)
 	}
 
-	async get(server, forceUpdate = false) {
-		if(!forceUpdate) {
-			var config = this.cache.get(server);
-			if(config) return config;
-		}
-
+	async get(server) {
 		try {
 			var data = await this.db.query(`SELECT * FROM configs WHERE server_id = $1`,[server]);
 		} catch(e) {
 			return Promise.reject(e.message)
 		}
 
-		if(data.rows?.[0]) {
-			this.cache.set(server, data.rows[0]);
-			return data.rows[0];
-		} else return undefined;
+		if(data.rows?.[0]) return new Config(this, data.rows[0]);
+		else return new Config(this, {server_id: server});
 	}
 
-	async update(server, data = {}) {
+	async getID(id) {
 		try {
-			await this.db.query(`
-				UPDATE configs SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")}
-				WHERE server_id=$1`,
-			[server, ...Object.values(data)])
+			var data = await this.db.query(`SELECT * FROM configs WHERE id = $1`,[id]);
 		} catch(e) {
 			return Promise.reject(e.message)
 		}
 
-		return await this.get(server, true);
+		if(data.rows?.[0]) return new Config(this, data.rows[0]);
+		else return new Config(this, {});
 	}
 
-	async delete(server) {
+	async update(id, data = {}) {
 		try {
-			await this.db.query(`DELETE FROM configs WHERE server_id = $1`, [server])
+			await this.db.query(`
+				UPDATE configs SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")}
+				WHERE id=$1`,
+			[id, ...Object.values(data)])
+		} catch(e) {
+			return Promise.reject(e.message)
+		}
+
+		return await this.getID(id, true);
+	}
+
+	async delete(id) {
+		try {
+			await this.db.query(`DELETE FROM configs WHERE id = $1`, [id])
 		} catch(e) {
 			return Promise.reject(e.message);
 		}
 
-		this.cache.delete(server);
 		return;
 	}
 }

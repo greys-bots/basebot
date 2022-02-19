@@ -2,11 +2,10 @@ const {
 	Client,
 	Intents,
 	Options
-} = require("discord.js"); //our lib
-const path 		= require("path"); //part of handling commands/etc
-const fs 		= require("fs"); //also part of above
+} = require("discord.js"); // our lib
+const fs 		= require("fs"); // also part of above
 
-require("dotenv").config(); //handles your .env, mainly for windows
+require("dotenv").config(); // handles your .env, mainly for windows
 
 const bot = new Client({
 	intents: [
@@ -29,15 +28,16 @@ const bot = new Client({
 	})
 });
 
-bot.status = 0; //determines below
-bot.prefix = process.env.PREFIX; //the bot's prefix
+bot.status = 0; // determines below
+bot.prefix = process.env.PREFIX; // the bot's prefix
+bot.invite = process.env.INVITE; // the bot's invite
 const statuses = [
 	// function makes sure it's accurate
 	() => `${bot.prefix}h | in ${bot.guilds.size} guilds`,
 	() => `${bot.prefix}h | serving ${bot.users.size} users`
 ]
 
-//handles the bot's activity stuff
+// handles the bot's activity stuff
 const updateStatus = function(){
 	var status = statuses[bot.status % statuses.length];
 	bot.user.setActivity(typeof status == 'function' ? status() : status)
@@ -46,7 +46,7 @@ const updateStatus = function(){
 	setTimeout(()=> updateStatus(),600000)
 }
 
-//actual setup
+// actual setup
 async function setup() {
 	var files;
 	bot.db = await require('./stores/__db.js')(bot); //our database and stores

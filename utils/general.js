@@ -1,3 +1,9 @@
+const {
+	confirmVals: STRINGS,
+	confirmReacts: REACTS,
+	confirmBtns: BUTTONS
+} = require('../extras');
+
 module.exports = {
 	genEmbeds: async (bot, arr, genFunc, info = {}, fieldnum, extras = {}) => {
 		return new Promise(async res => {

@@ -13,14 +13,14 @@ module.exports = async (bot) => {
 			color 		TEXT,
 			level 		INTEGER,
 			exp		 	INTEGER,
-			disabled 	INTEGER
+			disabled 	BOOLEAN
 		);
 
 		CREATE TABLE IF NOT EXISTS configs (
 			id 			SERIAL PRIMARY KEY,
 			server_id 	TEXT,
 			prefix		TEXT,
-			disabled	TEXT,
+			disabled	TEXT[],
 			levels		INTEGER
 		);
 

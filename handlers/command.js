@@ -125,7 +125,7 @@ class CommandHandler {
 		if(command.guildOnly && !msg.channel.guild) return "That command is guild only!";
 		if(msg.channel.guild) {
 			var check = this.checkPerms(ctx, cfg);
-			if(!check) return "You don't have permission to use that command!";
+			if(!check) return msg.channel.send("You don't have permission to use that command!");
 		}
 		if(command.cooldown && this.cooldowns.get(`${msg.author.id}-${command.name}`)) {
 			var s = Math.ceil((this.cooldowns.get(`${msg.author.id}-${command.name}`) - Date.now()) / 1000)
@@ -173,6 +173,12 @@ class CommandHandler {
 
 	checkPerms(ctx, cfg) {
 		var {command: cmd, msg} = ctx;
+		if(cfg.disabled) {
+			var included = cfg.disabled.includes(cmd.name);
+			console.log(msg.member.permissions.has('MANAGE_GUILD'));
+			if(included && !msg.member.permissions.has('MANAGE_GUILD')) return false;
+		}
+
 		if(!cmd.permissions?.[0]) return true;
 		if(cmd.permissions && msg.member.permissions.has(cmd.permissions))
 			return true;
@@ -182,6 +188,7 @@ class CommandHandler {
 			return (cmd.opPerms.filter(p => found.perms.includes(p))
 					.length == cmd.opPerms.length);
 		}
+
 		return false;
 	}
 

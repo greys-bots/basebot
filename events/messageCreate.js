@@ -5,7 +5,7 @@ module.exports = async (msg, bot) => {
 	try {
 		lvlup = await bot.stores.profiles.handleExperience(msg.author.id);
 	} catch(e) {
-		msg.channel.send(e);
+		await msg.channel.send(e);
 	}
 	if(lvlup.message) await msg.channel.send(lvlup.message.replace("$USER", msg.author.username));
 }

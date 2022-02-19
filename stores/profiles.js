@@ -1,16 +1,58 @@
-const { Collection } = require("discord.js");
+const KEYS = [
+	'id',
+	'user_id',
+	'name',
+	'description',
+	'color',
+	'level',
+	'exp',
+	'disabled'
+]
 
-class ProfileStore extends Collection {
+const PATCHABLE = KEYS.slice(2);
+
+class Profile {
+	level = 1;
+	exp = 0;
+	name = "unnamed";
+	description = "(not set)";
+
+	constructor(store, data) {
+		this.store = store;
+		for(var k of KEYS)
+			if(data[k] !== null && data[k] !== undefined)
+				this[k] = data[k];
+	}
+
+	async fetch() {
+		var data = await this.store.getID(this.id);
+		for(var k of KEYS) this[k] = data[k];
+
+		return this;
+	}
+
+	async save() {
+		var obj = {};
+		for(var k of PATCHABLE) obj[k] = this[k];
+
+		var data;
+		if(this.id) data = await this.store.update(this.id, obj);
+		else data = await this.store.create(this.user_id, obj);
+		for(var k of KEYS) this[k] = data[k];
+		return this;
+	}
+
+	async delete() {
+		await this.store.delete(this.id);
+	}
+}
+
+class ProfileStore {
 	constructor(bot, db) {
-		super();
-
 		this.db = db;
 		this.bot = bot;
 		this.expGiven = new Set();
-		this.cache = new Map();
-
-		setInterval(() => this.cache.clear(), process.env.CACHE_CLEAR || 10 * 60 * 1000) // clear cache every 10m by default
-	};
+	}
 
 	async create(user, data = {}) {
 		try {
@@ -34,45 +76,48 @@ class ProfileStore extends Collection {
 		return await this.get(user);
 	}
 
-	async get(user, forceUpdate = false) {
-		if(!forceUpdate) {
-			var profile = this.cache.get(user);
-			if(profile) return profile;
-		}
-
+	async get(user) {
 		try {
 			var data = await this.db.query(`SELECT * FROM profiles WHERE user_id = $1`, [user]);
 		} catch(e) {
 			return Promise.reject(e.message)
 		}
 
-		if(data.rows?.[0]) {
-			this.cache.set(user, data.rows[0]);
-			return data.rows[0];
-		} else return undefined;
+		if(data.rows?.[0]) return new Profile(this, data.rows[0]);
+		else return new Profile(this, {user_id: user});
 	}
 
-	async update(user, data = {}) {
+	async getID(id) {
 		try {
-			await this.db.query(`
-				UPDATE profiles SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")}
-				WHERE user_id=$1`,
-			[user, ...Object.values(data)])
+			var data = await this.db.query(`SELECT * FROM profiles WHERE id = $1`,[id]);
 		} catch(e) {
 			return Promise.reject(e.message)
 		}
 
-		return await this.get(user, true);
+		if(data.rows?.[0]) return new Profile(this, data.rows[0]);
+		else return new Profile(this, {});
 	}
 
-	async delete(user) {
+	async update(id, data = {}) {
 		try {
-			await this.db.query(`DELETE FROM profiles WHERE user_id = $1`, [user])
+			await this.db.query(`
+				UPDATE profiles SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")}
+				WHERE id=$1`,
+			[id, ...Object.values(data)])
+		} catch(e) {
+			return Promise.reject(e.message)
+		}
+
+		return await this.getID(id);
+	}
+
+	async delete(id) {
+		try {
+			await this.db.query(`DELETE FROM profiles WHERE id = $1`, [id])
 		} catch(e) {
 			return Promise.reject(e.message);
 		}
 
-		super.delete(user);
 		return;
 	}
 
@@ -82,25 +127,18 @@ class ProfileStore extends Collection {
 			var profile = await this.get(user);
 			var amount = Math.floor(Math.random() * 8) + 3; //for some variation
 			var data = {};
-			if(profile) {
-				var nextLevel = Math.pow(profile.level, 2) + 100;
-				if(profile.exp + amount >= nextLevel) {
-					profile.exp = profile.exp + amount - nextLevel;
-					profile.level += 1;
-					if(!profile.disabled) data.message = `Congrats $USER, you're now level ${profile.level}!`
-				} else profile.exp += amount;
+			var nextLevel = Math.pow(profile.level, 2) + 100;
+			if(profile.exp + amount >= nextLevel) {
+				profile.exp = profile.exp + amount - nextLevel;
+				profile.level += 1;
+				if(!profile.disabled) data.message = `Congrats $USER, you're now level ${profile.level}!`
+			} else profile.exp += amount;
 
-				try {
-					await this.update(user, {exp: profile.exp, level: profile.level});
-				} catch(e) {
-					return rej(e);
-				}
-			} else {
-				try {
-					profile = await this.create(user, {exp: 5});
-				} catch(e) {
-					return rej(e);
-				}
+			try {
+				await profile.save();
+			} catch(e) {
+				console.log(e);
+				return rej(e);
 			}
 			this.expGiven.add(user);
 			setTimeout(()=> this.expGiven.delete(user), 10000); //ratelimit/cooldown
