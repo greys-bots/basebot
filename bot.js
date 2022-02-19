@@ -1,7 +1,10 @@
-const Discord 	= require("discord.js"); //our lib
+const {
+	Client,
+	Intents,
+	Options
+} = require("discord.js"); //our lib
 const path 		= require("path"); //part of handling commands/etc
 const fs 		= require("fs"); //also part of above
-const dblite 	= require("dblite").withSQLite('3.8.6+'); //for our database
 
 require("dotenv").config(); //handles your .env, mainly for windows
 
@@ -20,9 +23,10 @@ const bot = new Client({
 		'GUILD_MEMBER',
 		'REACTION'
 	],
-	messageCacheMaxSize: 0,
-	messageCacheLifetime: 1,
-	messageSweepInterval: 1
+	makeCache: Options.cacheWithLimits({
+		MessageManager: 0,
+		ThreadManager: 0
+	})
 });
 
 bot.status = 0; //determines below
@@ -45,7 +49,7 @@ const updateStatus = function(){
 //actual setup
 async function setup() {
 	var files;
-	bot.db = require('./stores/__db.js')(bot); //our database and stores
+	bot.db = await require('./stores/__db.js')(bot); //our database and stores
 
 	files = fs.readdirSync("./events");
 	files.forEach(f => bot.on(f.slice(0,-3), (...args) => require("./events/"+f)(...args,bot)));
@@ -57,9 +61,6 @@ async function setup() {
 	bot.handlers = {};
 	files = fs.readdirSync(__dirname + "/handlers");
 	files.forEach(f => bot.handlers[f.slice(0,-3)] = require(__dirname + "/handlers/"+f)(bot));
-
-	var data = bot.utils.loadCommands(__dirname + "/../common/commands");
-	Object.keys(data).forEach(k => bot[k] = data[k]);
 }
 
 bot.writeLog = async (log) => {

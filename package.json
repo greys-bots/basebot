@@ -10,10 +10,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dblite": "^1.1.3",
-    "discord.js": "github:discordjs/discord.js",
+    "@discordjs/rest": "^0.3.0",
+    "discord-api-types": "^0.27.2",
+    "discord.js": "^13.6.0",
     "dotenv": "^8.2.0",
-    "eris": "github:abalabahaha/eris",
-    "tinycolor2": "^1.4.1"
+    "pg": "^8.7.3",
+    "tinycolor2": "^1.4.2"
   }
 }

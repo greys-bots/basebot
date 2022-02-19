@@ -1,7 +1,13 @@
 const { Collection } = require('discord.js');
+const { REST } = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v9');
+const { pageBtns: PAGE } = require('../extras');
+
+const rest = new REST({ version: '9' }).setToken(process.env.TOKEN);
 
 class InteractionHandler {
 	menus = new Collection();
+	cooldowns = new Map();
 
 	constructor(bot) {
 		this.bot = bot;
@@ -11,7 +17,7 @@ class InteractionHandler {
 		})
 
 		bot.once('ready', async () => {
-			await this.load(__dirname + '/../../common/slashcommands');
+			await this.load(__dirname + '/../slashcommands');
 			console.log('slash commands loaded!')
 		})
 	}
@@ -19,26 +25,21 @@ class InteractionHandler {
 	async load(path) {
 		var slashCommands = new Collection();
 		var slashData = new Collection();
+		var devOnly = new Collection();
 
 		var files = this.bot.utils.recursivelyReadDirectory(path);
 
-		for(f of files) {
+		for(var f of files) {
 			var path_frags = f.replace(path, "").split(/(?:\\|\/)/);
 			var mods = path_frags.slice(1, -1);
 			var file = path_frags[path_frags.length - 1];
 			if(file == '__mod.js') continue;
+			delete require.cache[require.resolve(f)];
 			var command = require(f);
 
-			var {
-				execute,
-				ephemeral,
-				perms,
-				guildOnly,
-				ownerOnly,
-				...data
-			} = command;
+			var {data} = command;
 			if(command.options) {
-				var d2 = command.options.map(({execute, ephemeral, perms, guildOnly, ...o}) => o);
+				var d2 = command.options.map(({data: d}) => d);
 				data.options = d2;
 			}
 
@@ -47,29 +48,48 @@ class InteractionHandler {
 				var g2 = slashData.get(mods[0]);
 				if(!group) {
 					var mod;
-					if(file == '__mod.js') mod = require(f);
-					else mod = require(f.replace(file, "/__mod.js"));
+					delete require.cache[require.resolve(f.replace(file, "/__mod.js"))];
+					mod = require(f.replace(file, "/__mod.js"));
 					group = {
 						...mod,
-						options: []
+						options: [],
+						type: 1
 					};
 					g2 = {
-						...mod,
-						options: []
+						...mod.data,
+						options: [],
+						type: 1
 					};
 
-					slashCommands.set(mod.name, group);
-					slashData.set(mod.name, g2);
+					slashCommands.set(mod.data.name, group);
+					if(mod.dev) devOnly.set(mod.data.name, g2);
+					else slashData.set(mod.data.name, g2);
 				}
+				
+				command.permissions = command.permissions ?? group.permissions;command.permissions = command.permissions ?? group.permissions;command.permissions = command.permissions ?? group.permissions;command.permissions = command.permissions ?? group.permissions;
+				command.permissions = command.permissions ?? group.permissions;command.permissions = command.permissions ?? group.permissions;command.permissions = command.permissions ?? group.permissions;command.opPerms = command.opPerms ?? group.opPerms;
+				command.guildOnly = command.guildOnly ?? group.guildOnly;
+				if(command.options) command.options = command.options.map(o => {
+					o.permissions = o.permissions ?? command.permissions
+					return o;
+				})
 
 				group.options.push(command)
-				g2.options.push({
-					...data,
-					type: data.type ?? 1
-				})
+				if(mod.dev) {
+					var dg = devOnly.get(mod.data.name);
+					dg.options.push({
+						...data,
+						type: data.type ?? 1
+					});
+				} else {
+					g2.options.push({
+						...data,
+						type: data.type ?? 1
+					})
+				}
 			} else {
-				slashCommands.set(command.name, command);
-				slashData.set(command.name, data)
+				slashCommands.set(command.data.name, command);
+				slashData.set(command.data.name, data)
 			}
 		}
 
@@ -79,7 +99,31 @@ class InteractionHandler {
 			if(!this.bot.application?.owner) await this.bot.application?.fetch();
 
 			var cmds = slashData.map(d => d);
-			await this.bot.application.commands.set(cmds, process.env.COMMAND_GUILD);
+			var dcmds = devOnly.map(d => d);
+			if(process.env.COMMAND_GUILD == process.env.DEV_GUILD) {
+				cmds = cmds.concat(dcmds);
+				await rest.put(
+					Routes.applicationGuildCommands(this.bot.application.id, process.env.COMMAND_GUILD),
+					{ body: cmds },
+				);
+			} else {
+				if(process.env.COMMAND_GUILD) {
+					await rest.put(
+						Routes.applicationGuildCommands(this.bot.application.id, process.env.COMMAND_GUILD),
+						{ body: cmds },
+					);
+				} else {
+					await rest.put(
+						Routes.applicationCommands(this.bot.application.id),
+						{ body: cmds },
+					);
+				}
+	
+				await rest.put(
+					Routes.applicationGuildCommands(this.bot.application.id, process.env.DEV_GUILD),
+					{ body: dcmds },
+				);
+			}
 			return;
 		} catch(e) {
 			console.log(e);
@@ -88,7 +132,8 @@ class InteractionHandler {
 	}
 
 	async handle(ctx) {
-		if(ctx.isCommand()) this.handleCommand(ctx);
+		if(ctx.isAutocomplete()) this.handleAuto(ctx);
+		if(ctx.isCommand() || ctx.isContextMenu()) this.handleCommand(ctx);
 		if(ctx.isButton()) this.handleButtons(ctx);
 		if(ctx.isSelectMenu()) this.handleSelect(ctx);
 	}
@@ -98,14 +143,14 @@ class InteractionHandler {
 		if(!cmd) return;
 
 		if(ctx.options.getSubcommandGroup(false)) {
-			cmd = cmd.options.find(o => o.name == ctx.options.getSubcommandGroup());
+			cmd = cmd.options.find(o => o.data.name == ctx.options.getSubcommandGroup());
 			if(!cmd) return;
 			var opt = ctx.options.getSubcommand(false);
 			if(opt) {
-				cmd = cmd.options.find(o => o.name == opt);
+				cmd = cmd.options.find(o => o.data.name == opt);
 			} else return;
 		} else if(ctx.options.getSubcommand(false)) {
-			cmd = cmd.options.find(o => o.name == ctx.options.getSubcommand());
+			cmd = cmd.options.find(o => o.data.name == ctx.options.getSubcommand());
 			if(!cmd) return;
 		}
 
@@ -116,11 +161,26 @@ class InteractionHandler {
 		var cmd = this.parse(ctx);
 		if(!cmd) return;
 
-		var check = this.checkPerms(cmd, ctx);
+		var cfg;
+		if(ctx.guild) cfg = await ctx.client.stores.configs.get(ctx.guild.id);
+
+		var check = this.checkPerms(cmd, ctx, cfg);
 		if(!check) return await ctx.reply({
 			content: "You don't have permission to use this command!",
 			ephemeral: true
 		});
+		if(cmd.guildOnly && !ctx.guildId) return await ctx.reply({
+			content: "That command is guild only!",
+			ephemeral: true
+		})
+
+		if(cmd.cooldown && this.cooldowns.get(`${ctx.user.id}-${cmd.name}`)) {
+			var s = Math.ceil((this.cooldowns.get(`${ctx.user.id}-${cmd.name}`) - Date.now()) / 1000)
+			return await ctx.reply({
+				content: `Cool down time! Please wait **${s}s** before using this command`,
+				ephemeral: true
+			});
+		}
 		
 		try {
 			var res = await cmd.execute(ctx);
@@ -130,9 +190,16 @@ class InteractionHandler {
 			else return await ctx.reply({content: "Error:\n" + e.message, ephemeral: true});
 		}
 
+		if(cmd.cooldown) {
+			this.cooldowns.set(`${ctx.user.id}-${cmd.name}`, Date.now() + (cmd.cooldown * 1000));
+			setTimeout(() => this.cooldowns.delete(`${ctx.user.id}-${cmd.name}`), cmd.cooldown * 1000);
+		}
+
 		if(!res) return;
 
-		var type = ctx.replied ? 'followUp' : 'reply'; // ew gross but it probably works
+		var type;
+		if(ctx.deferred) type = 'editReply';
+		else type = ctx.replied ? 'followUp' : 'reply'; // ew gross but it works
 		switch(typeof res) {
 			case 'string':
 				return await ctx[type]({content: res, ephemeral: cmd.ephemeral ?? false})
@@ -149,32 +216,7 @@ class InteractionHandler {
 						components: [
 							{
 								type: 1,
-								components: [
-									{
-										type: 2,
-										label: "First",
-										style: 1,
-										custom_id: 'first'
-									},
-									{
-										type: 2,
-										label: 'Previous',
-										style: 1,
-										custom_id: 'prev'
-									},
-									{
-										type: 2,
-										label: 'Next',
-										style: 1,
-										custom_id: 'next'
-									},
-									{
-										type: 2,
-										label: 'Last',
-										style: 1,
-										custom_id: 'last'
-									}
-								]
+								components: PAGE
 							}
 						]
 					}
@@ -197,7 +239,7 @@ class InteractionHandler {
 					return;
 				}
 
-				return await ctx[type]({...res, ephemeral: cmd.ephemeral ?? false})
+				return await ctx[type]({...res, ephemeral: (res.ephemeral ?? cmd.ephemeral) ?? false})
 		}
 	}
 
@@ -210,6 +252,14 @@ class InteractionHandler {
 		this.paginate(menu, ctx);
 	}
 
+	async handleAuto(ctx) {
+		var cmd = this.parse(ctx);
+		if(!cmd) return;
+
+		var result = await cmd.auto(ctx);
+		return await ctx.respond(result ?? []);
+	}
+
 	async handleSelect(ctx) {
 		var {message} = ctx;
 
@@ -219,12 +269,36 @@ class InteractionHandler {
 		menu.handle(ctx);
 	}
 
-	checkPerms(cmd, ctx) {
+	checkPerms(cmd, ctx, cfg) {
 		if(cmd.ownerOnly && ctx.user.id !== process.env.OWNER)
 			return false;
-		if(ctx.guildOnly && !ctx.member) return false; // pre-emptive in case of dm slash cmds
-		if(!cmd.perms || !cmd.perms[0]) return true;
-		return ctx.member.permissions.has(cmd.permissions);
+		if(cmd.guildOnly && !ctx.member) return false; // pre-emptive in case of dm slash cmds
+
+		if(!cmd.permissions?.length) return true; // no perms also means no opPerms
+		if(ctx.member.permissions.has(cmd.permissions))
+			return true;
+
+		var found = this.findOpped(ctx.member ?? ctx.user, cfg?.opped)
+		if(found && cmd.opPerms){			
+			return (cmd.opPerms.filter(p => found.perms.includes(p))
+					.length == cmd.opPerms.length);
+		}
+
+		return false;
+	}
+
+	findOpped(user, opped) {
+		if(!opped || !user) return;
+
+		var f = opped.users?.find(u => u.id == user.id);
+		if(f) return f;
+
+		if(user.roles) {
+			f = opped.roles.find(r => user.roles.cache.has(r.id));
+			if(f) return f;
+		}
+
+		return;
 	}
 
 	async paginate(menu, ctx) {

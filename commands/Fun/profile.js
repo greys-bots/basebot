@@ -14,22 +14,22 @@ module.exports = {
 		var profile = await bot.stores.profiles.get((args[0] ? args[0].replace(/[<@!>]/g, "") : msg.author.id));
 		if(!profile) return "No profile found";
 
-		return {embed: {
-			title: profile.name,
-			description: profile.description,
+		return {
+			title: profile.name || "untitled user profile",
+			description: profile.description || "(not set)",
 			author: {
 				name: msg.author.tag,
 				icon_url: msg.author.avatarURL({format: "png", dynamic: true})
 			},
 			color: parseInt(profile.color, 16) || parseInt("aaaaaa", 16),
 			fields: [
-				{name: "Level", value: profile.level, inline: true},
-				{name: "Experience", value: profile.exp, inline: true}
+				{name: "Level", value: (profile.level).toString(), inline: true},
+				{name: "Experience", value: (profile.exp).toString(), inline: true}
 			],
 			footer: {
 				text: `Level-up messages ${profile.disabled ? "are" : "are not"} disabled for this user`
 			}
-		}}
+		}
 	},
 	alias: ["prof"],
 	subcommands: {}

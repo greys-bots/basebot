@@ -9,7 +9,7 @@ class ProfileStore extends Collection {
 		this.expGiven = new Set();
 		this.cache = new Map();
 
-		setInterval(this.cache.clear(), process.env.CACHE_CLEAR || 10 * 60 * 1000) // clear cache every 10m by default
+		setInterval(() => this.cache.clear(), process.env.CACHE_CLEAR || 10 * 60 * 1000) // clear cache every 10m by default
 	};
 
 	async create(user, data = {}) {
@@ -39,36 +39,46 @@ class ProfileStore extends Collection {
 			var profile = this.cache.get(user);
 			if(profile) return profile;
 		}
-		
-		var data = await this.db.query(`SELECT * FROM profiles WHERE user_id = $1`, [user]);
 
-		if(data.rows?[0]) {
+		try {
+			var data = await this.db.query(`SELECT * FROM profiles WHERE user_id = $1`, [user]);
+		} catch(e) {
+			return Promise.reject(e.message)
+		}
+
+		if(data.rows?.[0]) {
 			this.cache.set(user, data.rows[0]);
 			return data.rows[0];
 		} else return undefined;
 	}
 
-	async update(user, data) {
-		this.db.query(`UPDATE profiles SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")} WHERE user_id=$1`,[user, ...Object.values(data)])
+	async update(user, data = {}) {
+		try {
+			await this.db.query(`
+				UPDATE profiles SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")}
+				WHERE user_id=$1`,
+			[user, ...Object.values(data)])
+		} catch(e) {
+			return Promise.reject(e.message)
+		}
+
+		return await this.get(user, true);
 	}
-0
+
 	async delete(user) {
-		return new Promise((res, rej) => {
-			this.db.query(`DELETE FROM profiles WHERE user_id = ?`, [user], (err, rows) => {
-				if(err) {
-					console.log(err);
-					rej(err.message);
-				} else {
-					super.delete(user);
-					res();
-				}
-			})
-		})
+		try {
+			await this.db.query(`DELETE FROM profiles WHERE user_id = $1`, [user])
+		} catch(e) {
+			return Promise.reject(e.message);
+		}
+
+		super.delete(user);
+		return;
 	}
 
 	async handleExperience(user) {
 		return new Promise(async (res, rej) => {
-			if(expGiven.has(user)) return res({});
+			if(this.expGiven.has(user)) return res({});
 			var profile = await this.get(user);
 			var amount = Math.floor(Math.random() * 8) + 3; //for some variation
 			var data = {};
@@ -92,8 +102,8 @@ class ProfileStore extends Collection {
 					return rej(e);
 				}
 			}
-			expGiven.add(user);
-			setTimeout(()=> expGiven.delete(user), 10000); //ratelimit/cooldown
+			this.expGiven.add(user);
+			setTimeout(()=> this.expGiven.delete(user), 10000); //ratelimit/cooldown
 			res(data);
 		})
 	}

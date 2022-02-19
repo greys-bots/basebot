@@ -6,76 +6,67 @@ class ConfigStore extends Collection {
 
 		this.db = db;
 		this.bot = bot;
+		this.cache = new Map();
+
+		setInterval(() => this.cache.clear(), process.env.CACHE_CLEAR || 10 * 60 * 1000)
 	};
 
 	async create(server, data = {}) {
-		return new Promise(async (res, rej) => {
-			this.db.query(`INSERT INTO configs (
+		try {
+			await this.db.query(`INSERT INTO configs (
 				server_id,
 				prefix,
 				disabled,
 				levels
-			) VALUES (?,?,?,?)`,
-			[server, data.prefix, data.disabled, data.levels], async (err, rows) => {
-			 	if(err) {
-			 		console.log(err);
-			 		rej(err.message);
-			 	} else {
-			 		res(await this.get(server));
-			 	}
-			 })
-		})
+			) VALUES ($1,$2,$3,$4)`,
+			[server, data.prefix, data.disabled, data.levels])
+		} catch(e) {
+			return Promise.reject(e.message)
+		}
+
+		return await this.get(server)
 	}
 
 	async get(server, forceUpdate = false) {
-		return new Promise((res, rej) => {
-			if(!forceUpdate) {
-				var config = super.get(server);
-				if(config) return res(config);
-			}
-			this.db.query(`SELECT * FROM configs WHERE server_id = ?`,[server], {
-				id: Number,
-				server_id: String,
-				prefix: String,
-				disabled: val => val ? JSON.parse(val) : null,
-				levels: Boolean
-			}, (err, rows) => {
-				if(err) {
-					console.log(err);
-					rej(err.message);
-				} else {
-					this.set(server, rows[0]);
-					res(rows[0])
-				}
-			})
-		})
+		if(!forceUpdate) {
+			var config = this.cache.get(server);
+			if(config) return config;
+		}
+
+		try {
+			var data = await this.db.query(`SELECT * FROM configs WHERE server_id = $1`,[server]);
+		} catch(e) {
+			return Promise.reject(e.message)
+		}
+
+		if(data.rows?.[0]) {
+			this.cache.set(server, data.rows[0]);
+			return data.rows[0];
+		} else return undefined;
 	}
 
-	async update(server, data) {
-		return new Promise((res, rej) => {
-			this.db.query(`UPDATE configs SET ${Object.keys(data).map((k) => k+"=?").join(",")} WHERE server_id=?`,[...Object.values(data), server], async (err, rows)=> {
-				if(err) {
-					console.log(err);
-					rej(err.message);
-				} else {
-					res(await this.get(server, true));
-				}
-			})
-		})
+	async update(server, data = {}) {
+		try {
+			await this.db.query(`
+				UPDATE configs SET ${Object.keys(data).map((k, i) => k+'=$' + (i + 2)).join(",")}
+				WHERE server_id=$1`,
+			[server, ...Object.values(data)])
+		} catch(e) {
+			return Promise.reject(e.message)
+		}
+
+		return await this.get(server, true);
 	}
 
 	async delete(server) {
-		return new Promise((res, rej) => {
-			this.db.query(`DELETE FROM configs WHERE server_id = ?`, [server], (err, rows) => {
-				if(err) {
-					console.log(err);
-					rej(err.message);
-				} else {
-					super.delete(server);
-					res();
-				}
-			})
-		})
+		try {
+			await this.db.query(`DELETE FROM configs WHERE server_id = $1`, [server])
+		} catch(e) {
+			return Promise.reject(e.message);
+		}
+
+		this.cache.delete(server);
+		return;
 	}
 }
 
