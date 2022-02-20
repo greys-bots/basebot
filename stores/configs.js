@@ -107,4 +107,7 @@ class ConfigStore {
 	}
 }
 
-module.exports = (bot, db) => new ConfigStore(bot, db);
+module.exports = {
+	Config,
+	store: (bot, db) => new ConfigStore(bot, db)
+}

@@ -147,4 +147,7 @@ class ProfileStore {
 	}
 }
 
-module.exports = (bot, db) => new ProfileStore(bot, db);
+module.exports = {
+	Profile,
+	store: (bot, db) => new ProfileStore(bot, db)
+}

@@ -36,7 +36,7 @@ module.exports = async (bot) => {
 	for(var file of files) {
 		if(["__db.js", "migrations"].includes(file)) continue;
 		var name = file.slice(0, -3);
-		bot.stores[name] = require(__dirname+'/'+file)(bot, db);
+		bot.stores[name] = require(__dirname+'/'+file).store(bot, db);
 		if(bot.stores[name].init) bot.stores[name].init();
 	}
 
