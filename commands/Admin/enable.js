@@ -1,6 +1,8 @@
+var { confirmReacts } = require('../../extras');
+
 module.exports = {
 	help: ()=> "Enables a command/module or a command's subcommands.",
-	usage: ()=> [" [command/module] <subcommand> - enables given command or its subcommand"],
+	usage: ()=> ["[command/module] <subcommand> - enables given command or its subcommand"],
 	execute: async (bot, msg, args) => {
 		if(!args[0]) return "Please provide a command or module to enable.";
 		var cfg = await bot.stores.configs.get(msg.guild.id);
@@ -13,7 +15,7 @@ module.exports = {
 			dis = dis.filter(x => !mod.commands.get(x));
 		} else {
 			try {
-				var {command} = await bot.parseCommand(bot, msg, args);
+				var {command} = await bot.handlers.command.parse(args.join(" "));
 			} catch (e) {
 				command = undefined;
 			}
@@ -22,12 +24,32 @@ module.exports = {
 			if(!dis.includes(command.name)) {
 				return "That command is already enabled!"
 			} else {
-				dis = dis.filter(x => x != command.name);
+				if(command.subcommands) {
+					var sc = command.subcommands.map(c => c.name)
+					var m = await msg.channel.send({
+						embeds: [{
+							title: "Would you like to enable any disabled subcommands as well?",
+							fields: [{
+								name: 'Subcommands',
+								value: sc.join("\n")
+							}]
+						}]
+					});
+					confirmReacts.forEach(r => m.react(r));
+					var conf = await bot.utils.getConfirmation(bot, m, msg.author);
+					if(conf.msg) dis = dis.filter(x => x != command.name);
+					else {
+						for(var c of [...sc, command.name]) {
+							dis = dis.filter(x => x != c);
+						}
+					}
+				} else dis = dis.filter(x => x != command.name);
 			}
 		}
 
 		try {
-			await bot.stores.configs.update(msg.guild.id, {disabled: dis});;
+			cfg.disabled = dis;
+			await cfg.save();
 		} catch(e) {
 			return "ERR: "+e;
 		}

@@ -1,7 +1,9 @@
+var { confirmReacts } = require('../../extras');
+
 module.exports = {
 	help: ()=> "Disables a command/module or a command's subcommands",
-	usage: ()=> [" - Lists disabled commands",
-				 " [command/module] <subcommand> - Disables given command or its subcommand"],
+	usage: ()=> ["- Lists disabled commands",
+				 "[command/module] <subcommand> - Disables given command or its subcommand"],
 	execute: async (bot, msg, args) => {
 		var cfg;
 		try {
@@ -11,7 +13,6 @@ module.exports = {
 		}
 		
 		if(!args[0]) {
-			console.log(cfg);
 			if(!cfg || !cfg.disabled) return "Nothing is disabled in this server";
 			
 			return {embed: {
@@ -22,13 +23,6 @@ module.exports = {
 
 		if(["disable", "enable"].includes(args[0].toLowerCase())) return "You can't disable or enable this command.";
 		var dis;
-		if(!cfg) {
-			try {
-				cfg = await bot.stores.configs.create(msg.guild.id);
-			} catch(e) {
-				return "ERR: "+e;
-			}
-		}
 		if(!cfg.disabled) dis = [];
 		else dis = cfg.disabled;
 
@@ -38,7 +32,7 @@ module.exports = {
 			dis = dis.concat(mod.commands.map(c => c.name).filter(x => !["enable", "disable"].includes(x) && !dis.includes(x)));
 		} else {
 			try {
-				var {command} = await bot.parseCommand(bot, msg, args);
+				var {command} = await bot.handlers.command.parse(args.join(" "));
 			} catch (e) {
 				command = undefined;
 			}
@@ -47,12 +41,27 @@ module.exports = {
 			if(dis.includes(command.name)) {
 				return "That module is already disabled!";
 			} else {
-				dis.push(command.name)
+				if(command.subcommands) {
+					var m = await msg.channel.send({
+						embeds: [{
+							title: "Would you like to disable all subcommands as well?",
+							fields: [{
+								name: 'Subcommands',
+								value: command.subcommands.map(c => c.name).join("\n")
+							}]
+						}]
+					});
+					confirmReacts.forEach(r => m.react(r));
+					var conf = await bot.utils.getConfirmation(bot, m, msg.author);
+					if(conf.msg) dis.push(command.name);
+					else dis = dis.concat([command.name, ...command.subcommands.map(c => c.name)]);
+				} else dis.push(command.name);
 			}
 		}
 
 		try {
-			await bot.stores.configs.update(msg.guild.id, {disabled: dis});;
+			cfg.disabled = dis;
+			await cfg.save();
 		} catch(e) {
 			return "ERR: "+e;
 		}

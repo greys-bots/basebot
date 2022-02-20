@@ -119,3 +119,6 @@ module.exports = async (message, bot) => {
 [Guide to Discord.js](https://discordjs.guide/)  
 [An Idiot's Guide to Bot Making](https://anidiots.guide/)  
 [AIG's Video Tutorials](https://www.youtube.com/watch?v=rVfjZrqoQ7o&list=PLR2_rarYLHfg6ZJqq0WTMmI9uLcd7_GRO)
+
+### Want us to make a bot for you?
+We do commissions! Check out [this doc](https://docs.google.com/document/d/1hvqvqdWj0mpHeNjo_mr2AHF7La32nkp4BDLxO1dvTHw/edit?usp=drivesdk) for more info

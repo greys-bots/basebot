@@ -1,9 +1,11 @@
 const PINGS = ["Pong", "Pang", "Peng", "Pung"];
 
 module.exports = {
-	help: ()=> "Ping the bot",
-	usage: ()=> ["- Sends a random ping message"],
-	execute: async (bot, msg, args) => {
+	data: {
+		name: 'ping',
+		description: 'Ping the bot'
+	},
+	async execute(ctx) {
 		return PINGS[Math.floor(Math.random()*PINGS.length)] + "!";
 	}
 }
