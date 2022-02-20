@@ -139,21 +139,27 @@ class InteractionHandler {
 	}
 
 	parse(ctx) {
+		var long = "";
 		var cmd = this.bot.slashCommands.get(ctx.commandName);
 		if(!cmd) return;
+		long += cmd.name ?? cmd.data.name;
 
 		if(ctx.options.getSubcommandGroup(false)) {
 			cmd = cmd.options.find(o => o.data.name == ctx.options.getSubcommandGroup());
 			if(!cmd) return;
+			long += ` ${cmd.data.name}`;
 			var opt = ctx.options.getSubcommand(false);
 			if(opt) {
 				cmd = cmd.options.find(o => o.data.name == opt);
+				if(cmd) long += ` ${cmd.data.name}`;
 			} else return;
 		} else if(ctx.options.getSubcommand(false)) {
 			cmd = cmd.options.find(o => o.data.name == ctx.options.getSubcommand());
 			if(!cmd) return;
+			long += ` ${cmd.data.name}`;
 		}
 
+		if(cmd) cmd.long = long;
 		return cmd;
 	}
 
@@ -273,6 +279,10 @@ class InteractionHandler {
 		if(cmd.ownerOnly && ctx.user.id !== process.env.OWNER)
 			return false;
 		if(cmd.guildOnly && !ctx.member) return false; // pre-emptive in case of dm slash cmds
+
+		if(cfg?.disabled && cfg.disabled.includes(cmd.long)) {
+			if(!ctx.member.permissions.has('MANAGE_GUILD')) return false;
+		}
 
 		if(!cmd.permissions?.length) return true; // no perms also means no opPerms
 		if(ctx.member.permissions.has(cmd.permissions))
